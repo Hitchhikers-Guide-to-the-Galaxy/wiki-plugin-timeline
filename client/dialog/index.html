@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Timeline</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a1a2e; overflow: hidden; user-select: none; }
+#stage { width: 100vw; height: 100vh; cursor: grab; }
+#stage:active { cursor: grabbing; }
+#stage svg { display: block; width: 100%; height: 100%; }
+#hint {
+  position: fixed; bottom: 12px; left: 50%;
+  transform: translateX(-50%);
+  font: 11px sans-serif; color: #666;
+  pointer-events: none;
+}
+</style>
+</head>
+<body>
+<div id="stage"><svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg></div>
+<div id="hint">Drag to pan · Scroll to zoom · Click event to open page · Close window to return</div>
+<script>
+(function () {
+  const stage = document.getElementById('stage')
+  const svgEl = document.getElementById('svg')
+
+  // Receive SVG + context from opener
+  let pageKey, context = []
+  window.addEventListener('message', e => {
+    if (!e.data || !e.data.svg) return
+    stage.innerHTML = e.data.svg
+    pageKey = e.data.pageKey
+    context = e.data.context || []
+    initInteraction()
+  })
+
+  // Ask opener to resend if we loaded before the postMessage
+  if (window.opener) window.opener.postMessage({ action: 'ready' }, '*')
+
+  function initInteraction () {
+    const svg = stage.querySelector('svg')
+    if (!svg) return
+
+    // ── Pan / zoom via viewBox matrix ─────────────────────────────────────
+    let vb    = getVB(svg)
+    let drag  = null
+
+    svg.addEventListener('pointerdown', e => {
+      drag = { x: e.clientX, y: e.clientY, vb: { ...vb } }
+      svg.setPointerCapture(e.pointerId)
+    })
+    svg.addEventListener('pointermove', e => {
+      if (!drag) return
+      const scaleX = vb.w / svg.clientWidth
+      const scaleY = vb.h / svg.clientHeight
+      vb.x = drag.vb.x - (e.clientX - drag.x) * scaleX
+      vb.y = drag.vb.y - (e.clientY - drag.y) * scaleY
+      setVB(svg, vb)
+    })
+    svg.addEventListener('pointerup',   () => { drag = null })
+    svg.addEventListener('pointercancel', () => { drag = null })
+
+    svg.addEventListener('wheel', e => {
+      e.preventDefault()
+      const factor = e.deltaY > 0 ? 1.12 : 0.89
+      const rect   = svg.getBoundingClientRect()
+      const mx     = (e.clientX - rect.left) / rect.width
+      const my     = (e.clientY - rect.top)  / rect.height
+      const cx     = vb.x + mx * vb.w
+      const cy     = vb.y + my * vb.h
+      vb.w *= factor; vb.h *= factor
+      vb.x = cx - mx * vb.w
+      vb.y = cy - my * vb.h
+      setVB(svg, vb)
+    }, { passive: false })
+
+    // ── Click to navigate ──────────────────────────────────────────────────
+    svg.addEventListener('click', e => {
+      if (drag && (Math.abs(e.clientX - drag?.x) > 4 || Math.abs(e.clientY - drag?.y) > 4)) return
+      const el = e.target.closest('.timeline-event')
+      if (!el) return
+      const title = el.dataset.label
+      if (!title) return
+      const keepLineup = !e.shiftKey
+      if (window.opener) {
+        window.opener.postMessage({ action: 'doInternalLink', title, pageKey, context, keepLineup }, '*')
+      }
+    })
+  }
+
+  function getVB (svg) {
+    const vb = svg.viewBox.baseVal
+    if (vb && vb.width) return { x: vb.x, y: vb.y, w: vb.width, h: vb.height }
+    return { x: 0, y: 0, w: svg.clientWidth || 860, h: svg.clientHeight || 600 }
+  }
+  function setVB (svg, vb) {
+    svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`)
+  }
+})()
+</script>
+</body>
+</html>

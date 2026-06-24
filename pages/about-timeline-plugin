@@ -1,0 +1,108 @@
+{
+  "title": "About Timeline Plugin",
+  "story": [
+    {
+      "type": "markdown",
+      "id": "1592fc065c5f2177",
+      "text": "The Timeline Plugin renders a navigable SVG timeline. It collects events from [[About Date Plugin]] items upstream in the lineup and from events authored directly in the item text."
+    },
+    {
+      "type": "timeline",
+      "id": "34db669a30ee58c9",
+      "text": "section Demoscene\n2026-02-01..2026-05-30 Wiki Wild Compo\n2026-01-15 Hitchhiker Game Jam\n\nsection Projects\n2025-04-12 Patchable Knowledge Habitats"
+    },
+    {
+      "type": "markdown",
+      "id": "db26ae488c281829",
+      "text": "## DSL"
+    },
+    {
+      "type": "markdown",
+      "id": "72a9df6bb9cddc6c",
+      "text": "One event per line, Mermaid gantt-inspired syntax:"
+    },
+    {
+      "type": "markdown",
+      "id": "16ad471df6e2cefd",
+      "text": "LINEUP\n\nsection Demoscene\n2026-02-01..2026-05-30 Wiki Wild Compo\n2026-01-15 Hitchhiker Game Jam #Demos"
+    },
+    {
+      "type": "markdown",
+      "id": "650016c2aec35a63",
+      "text": "| Keyword | Meaning |\n|---|---|\n| `LINEUP` | Scan upstream `.calendar-source` items for events |\n| `section Name` | Start a named group lane |\n| `YYYY-MM-DD Label` | Point event |\n| `YYYY-MM-DD..YYYY-MM-DD Label` | Range event |\n| `#GroupName` | Inline group tag (overrides current section) |"
+    },
+    {
+      "type": "markdown",
+      "id": "e0b03a5b3caa237d",
+      "text": "## Navigation\n\nClicking an event calls `wiki.doInternalLink` with the event label as the page title. The label must match a reachable wiki page title. Shift-click opens the page in a new column."
+    },
+    {
+      "type": "markdown",
+      "id": "ebe4455f741e7246",
+      "text": "## Freeze-Thaw\n\nClick ❄ to snapshot the current lineup events into `item.frozen`. The timeline becomes self-contained — no lineup scan needed. Shift-click ❄ to restore live scanning.\n\n## Fullscreen\n\nClick ⤢ to open the timeline in a popup with pan (drag) and zoom (scroll wheel)."
+    },
+    {
+      "type": "markdown",
+      "id": "c0268fe5f609f699",
+      "text": "## Repositories\n\n* [GitHub — wiki-plugin-timeline](https://github.com/Hitchhikers-Guide-to-the-Galaxy/wiki-plugin-timeline)\n* [npm — wiki-plugin-timeline](https://www.npmjs.com/package/wiki-plugin-timeline)"
+    }
+  ],
+  "journal": [
+    {
+      "type": "create",
+      "item": {
+        "title": "About Timeline Plugin",
+        "story": [
+          {
+            "type": "markdown",
+            "id": "1592fc065c5f2177",
+            "text": "The Timeline Plugin renders a navigable SVG timeline. It collects events from [[About Date Plugin]] items upstream in the lineup and from events authored directly in the item text."
+          },
+          {
+            "type": "timeline",
+            "id": "34db669a30ee58c9",
+            "text": "section Demoscene\n2026-02-01..2026-05-30 Wiki Wild Compo\n2026-01-15 Hitchhiker Game Jam\n\nsection Projects\n2025-04-12 Patchable Knowledge Habitats"
+          },
+          {
+            "type": "markdown",
+            "id": "db26ae488c281829",
+            "text": "## DSL"
+          },
+          {
+            "type": "markdown",
+            "id": "72a9df6bb9cddc6c",
+            "text": "One event per line, Mermaid gantt-inspired syntax:"
+          },
+          {
+            "type": "markdown",
+            "id": "16ad471df6e2cefd",
+            "text": "LINEUP\n\nsection Demoscene\n2026-02-01..2026-05-30 Wiki Wild Compo\n2026-01-15 Hitchhiker Game Jam #Demos"
+          },
+          {
+            "type": "markdown",
+            "id": "650016c2aec35a63",
+            "text": "| Keyword | Meaning |\n|---|---|\n| `LINEUP` | Scan upstream `.calendar-source` items for events |\n| `section Name` | Start a named group lane |\n| `YYYY-MM-DD Label` | Point event |\n| `YYYY-MM-DD..YYYY-MM-DD Label` | Range event |\n| `#GroupName` | Inline group tag (overrides current section) |"
+          },
+          {
+            "type": "markdown",
+            "id": "e0b03a5b3caa237d",
+            "text": "## Navigation\n\nClicking an event calls `wiki.doInternalLink` with the event label as the page title. The label must match a reachable wiki page title. Shift-click opens the page in a new column."
+          },
+          {
+            "type": "markdown",
+            "id": "ebe4455f741e7246",
+            "text": "## Freeze-Thaw\n\nClick ❄ to snapshot the current lineup events into `item.frozen`. The timeline becomes self-contained — no lineup scan needed. Shift-click ❄ to restore live scanning.\n\n## Fullscreen\n\nClick ⤢ to open the timeline in a popup with pan (drag) and zoom (scroll wheel)."
+          },
+          {
+            "type": "markdown",
+            "id": "c0268fe5f609f699",
+            "text": "## Repositories\n\n* [GitHub — wiki-plugin-timeline](https://github.com/Hitchhikers-Guide-to-the-Galaxy/wiki-plugin-timeline)\n* [npm — wiki-plugin-timeline](https://www.npmjs.com/package/wiki-plugin-timeline)"
+          }
+        ]
+      },
+      "date": 1750758000000,
+      "provenance": "Authored by an AI agent — Claude Code (claude-sonnet-4-6) via the fedwiki-create-plugin skill. [https://claude.com/claude-code Claude Code]"
+    }
+  ],
+  "plugin": "timeline"
+}
