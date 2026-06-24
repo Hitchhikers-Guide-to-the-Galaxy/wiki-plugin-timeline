@@ -341,22 +341,63 @@ export const renderSVG = (events, opts = {}) => {
   return o.join('\n')
 }
 
+// ── Controls helpers ──────────────────────────────────────────────────────────
+
+// SVG expand icon (12×12)
+const EXPAND_ICON =
+  `<svg width="13" height="13" viewBox="0 0 12 12" fill="currentColor" style="display:block">` +
+  `<path d="M0 0h4v1.5H1.5V4H0V0zm8 0h4v4h-1.5V1.5H8V0zM0 8h1.5v2.5H4V12H0V8zm9.5 2.5V8H11v4H7v-1.5h2.5z"/>` +
+  `</svg>`
+
+const mkControls = (frozen) => {
+  const fTitle = frozen ? 'Thaw — shift-click to restore live updates' : 'Freeze lineup events into this item'
+  const eTitle = 'Open fullscreen in new tab'
+  return (
+    `<div class="tl-controls">` +
+    `<span class="tl-btn tl-freeze${frozen ? ' tl-frozen' : ''}" title="${fTitle}">❄</span>` +
+    `<span class="tl-btn tl-expand" title="${eTitle}">${EXPAND_ICON}</span>` +
+    `</div>`
+  )
+}
+
+const TL_CSS = `<style id="wiki-tl-styles">
+.wiki-plugin-timeline { overflow: hidden }
+.tl-controls {
+  display: flex; justify-content: flex-end; gap: 3px;
+  padding: 3px 2px 1px; margin-top: 3px;
+  border-top: 1px solid #f0f0f0;
+}
+.tl-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 4px;
+  cursor: pointer; color: #aaa; font-size: 15px; line-height: 1;
+  transition: background .1s, color .1s;
+}
+.tl-btn:hover { background: #f0f0f0; color: #555 }
+.tl-frozen { color: #3d6fb5 !important }
+</style>`
+
+let tlCSSInjected = false
+const injectTLCSS = () => {
+  if (tlCSSInjected || document.getElementById('wiki-tl-styles')) return
+  document.head.insertAdjacentHTML('beforeend', TL_CSS)
+  tlCSSInjected = true
+}
+
 // ── emit ──────────────────────────────────────────────────────────────────────
 
 export const emit = ($item, item) => {
+  if (typeof document !== 'undefined') injectTLCSS()
   const { events: authoredEvents } = parseText(item.text)
   const events = item.frozen
     ? [...(item.frozen || []).map(normaliseStoredEvent), ...authoredEvents]
     : authoredEvents
 
-  const svg = renderSVG(events)
   $item.html(
-    `<div class="wiki-plugin-timeline" style="overflow:hidden;">` +
-    svg +
-    `<div class="tl-controls" style="text-align:right;font-size:11px;color:#aaa;margin-top:2px;">` +
-    `<span class="tl-freeze" title="Freeze lineup events" style="cursor:pointer;margin-right:6px;">❄</span>` +
-    `<span class="tl-expand" title="Fullscreen" style="cursor:pointer;">⤢</span>` +
-    `</div></div>`
+    `<div class="wiki-plugin-timeline">` +
+    renderSVG(events) +
+    mkControls(!!item.frozen) +
+    `</div>`
   )
 }
 
@@ -370,20 +411,13 @@ const normaliseStoredEvent = ev => ({
 // ── bind ──────────────────────────────────────────────────────────────────────
 
 export const bind = ($item, item) => {
+  injectTLCSS()
   const { events: authoredEvents } = parseText(item.text)
-
-  // Re-collect (will use frozen if present, else scan lineup)
   const events = collect($item, item, authoredEvents)
 
-  // Render with live events
-  const svg = renderSVG(events)
   $item.find('.wiki-plugin-timeline').html(
-    svg +
-    `<div class="tl-controls" style="text-align:right;font-size:11px;color:#aaa;margin-top:2px;">` +
-    `<span class="tl-freeze" title="${item.frozen ? 'Thaw (shift-click to restore live)' : 'Freeze lineup events'}" ` +
-    `style="cursor:pointer;margin-right:6px;${item.frozen ? 'color:#5b8dd9' : ''}">❄</span>` +
-    `<span class="tl-expand" title="Fullscreen" style="cursor:pointer;">⤢</span>` +
-    `</div>`
+    renderSVG(events) +
+    mkControls(!!item.frozen)
   )
 
   // ── Navigation — click on any .timeline-event ──────────────────────────────
@@ -396,17 +430,14 @@ export const bind = ($item, item) => {
     } catch (_) {}
   })
 
-  // ── Freeze ─────────────────────────────────────────────────────────────────
+  // ── Freeze / Thaw ──────────────────────────────────────────────────────────
   $item.find('.tl-freeze').on('click', function (e) {
     if (e.shiftKey && item.frozen) {
-      // Thaw
       delete item.frozen
       delete item.svg
     } else if (!item.frozen) {
-      // Freeze current lineup events (not authored events)
       const { events: authored } = parseText(item.text)
       const allEvents = collect($item, item, authored)
-      // Only freeze the non-authored (lineup-sourced) events
       item.frozen = allEvents.filter(ev => !authored.includes(ev)).map(ev => ({
         label: ev.label,
         start: ev.start.toISOString(),
@@ -423,25 +454,24 @@ export const bind = ($item, item) => {
     } catch (_) {}
   })
 
-  // ── Fullscreen dialog ──────────────────────────────────────────────────────
+  // ── Fullscreen — opens in a new browser tab ────────────────────────────────
+  let dialogTab = null
+
   $item.find('.tl-expand').on('click', () => {
     const $page  = $item.closest('.page')
     const pageKey = $page.data('key')
     let context
     try { context = wiki.lineup.atKey(pageKey).getContext() } catch (_) { context = [] }
 
-    const win = window.open(
-      '/plugins/timeline/dialog/',
-      'wiki-timeline-dialog-' + pageKey,
-      'popup,width=900,height=600'
-    )
-    if (!win) return
+    const svgFull = renderSVG(events, { width: 1200 })
+    const send = () => dialogTab?.postMessage({ svg: svgFull, pageKey, context }, '*')
 
-    const svgFull = renderSVG(events, { width: 860 })
-    const send = () => win.postMessage({ svg: svgFull, pageKey, context }, '*')
-    // Send once loaded, then again after a short delay in case it wasn't ready
-    win.addEventListener('load', send, { once: true })
-    setTimeout(send, 800)
+    dialogTab = window.open('/plugins/timeline/dialog/', '_blank')
+    if (!dialogTab) return
+
+    // Deliver SVG: via load event (same-origin) + timeout fallback
+    dialogTab.addEventListener('load', send, { once: true })
+    setTimeout(send, 1000)
   })
 
   // ── Edit — dblclick anywhere outside the SVG ──────────────────────────────
@@ -450,8 +480,19 @@ export const bind = ($item, item) => {
     wiki.textEditor($item, item)
   })
 
-  // ── Listen for navigation messages from the dialog ─────────────────────────
+  // ── Messages from the fullscreen tab ─────────────────────────────────────
+  const $page = $item.closest('.page')
+  const pageKey = $page.data('key')
+
   const onMessage = e => {
+    // Dialog tab signals it is ready — resend SVG (handles tab-loaded-before-send race)
+    if (e.data?.action === 'ready') {
+      let ctx
+      try { ctx = wiki.lineup.atKey(pageKey).getContext() } catch (_) { ctx = [] }
+      const svgFull = renderSVG(events, { width: 1200 })
+      dialogTab?.postMessage({ svg: svgFull, pageKey, context: ctx }, '*')
+      return
+    }
     if (e.data?.action !== 'doInternalLink') return
     try {
       wiki.pageHandler.context = e.data.context || []
@@ -459,7 +500,6 @@ export const bind = ($item, item) => {
     } catch (_) {}
   }
   window.addEventListener('message', onMessage)
-  // Clean up when item is removed from DOM
   $item.one('remove', () => window.removeEventListener('message', onMessage))
 }
 
