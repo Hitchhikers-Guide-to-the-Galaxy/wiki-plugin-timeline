@@ -109,125 +109,237 @@ export const collect = ($item, item, authoredEvents) => {
 
 // ── SVG Renderer ──────────────────────────────────────────────────────────────
 // Pure function: events → SVG string.
-// Width is fixed at 400px (wiki column). Height scales with number of lanes.
+// Improvements over v1:
+//   - Section background bands with coloured left stripe
+//   - Greedy row-packing per section (no event collisions)
+//   - Adaptive time axis: months for short spans, years for long
+//   - Light vertical grid lines at major ticks
+//   - Point labels above the circle; bar labels clipped inside wide bars
 
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-
-const pad2 = n => String(n).padStart(2, '0')
+const pad2  = n => String(n).padStart(2, '0')
 const fmtDate = d => `${pad2(d.getDate())} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`
+const r2    = n => Math.round(n * 100) / 100
+const escXML  = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+const escAttr = s => (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')
 
-export const renderSVG = (events, opts = {}) => {
-  const W       = opts.width  || 400
-  const PADDING = { top: 28, right: 12, bottom: 16, left: 8 }
-  const ROW_H   = 22
-  const TICK_H  = 14
+// Clip string to fit within pixel width (rough 6.2px per char at 10px sans-serif)
+const clipText = (s, pxW) => {
+  if (!s) return ''
+  const max = Math.floor(pxW / 6.2)
+  return s.length <= max ? s : s.slice(0, max - 1) + '…'
+}
 
-  if (!events.length) {
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="48" viewBox="0 0 ${W} 48">` +
-           `<text x="${W/2}" y="28" text-anchor="middle" font-size="12" fill="#999">no events</text></svg>`
+// Adaptive tick list: { t, label, major }
+const generateTicks = (minT, maxT) => {
+  const spanDays = (maxT - minT) / 86400000
+  const ticks = []
+
+  if (spanDays > 365 * 2.5) {
+    // Year major ticks; quarter minor ticks if < 8 years
+    const y0 = new Date(minT).getFullYear()
+    const y1 = new Date(maxT).getFullYear() + 1
+    for (let y = y0; y <= y1; y++) {
+      const t = new Date(y, 0, 1).getTime()
+      if (t >= minT && t <= maxT) ticks.push({ t, label: String(y), major: true })
+      if (spanDays < 365 * 8) {
+        for (const m of [3, 6, 9]) {
+          const tq = new Date(y, m, 1).getTime()
+          if (tq >= minT && tq <= maxT) ticks.push({ t: tq, label: '', major: false })
+        }
+      }
+    }
+  } else {
+    // Month ticks; label every month if ≤ 12 months, else only Jan
+    const d0 = new Date(minT)
+    const d1 = new Date(maxT)
+    let d = new Date(d0.getFullYear(), d0.getMonth(), 1)
+    while (d.getTime() <= d1.getTime()) {
+      const isJan = d.getMonth() === 0
+      const showLabel = spanDays <= 366 || isJan
+      ticks.push({
+        t:     d.getTime(),
+        label: isJan ? String(d.getFullYear()) : (showLabel ? MONTHS_SHORT[d.getMonth()] : ''),
+        major: true,
+      })
+      d = new Date(d.getFullYear(), d.getMonth() + 1, 1)
+    }
   }
 
-  // Time bounds
+  return ticks.sort((a, b) => a.t - b.t)
+}
+
+// Greedy interval scheduling: pack events into minimum rows with no overlap
+const packRows = (evs, tX) => {
+  const rows  = []
+  const sorted = [...evs].sort((a, b) => a.start - b.start)
+  for (const ev of sorted) {
+    const x1 = tX(ev.start.getTime())
+    const x2 = tX(ev.end.getTime())
+    // A point event's circle takes ~10px; reserve that as its footprint
+    const right = (x2 - x1 < 4) ? x1 + 10 : x2
+    let placed = false
+    for (const row of rows) {
+      const prev  = row[row.length - 1]
+      const px2   = tX(prev.end.getTime())
+      const prevR = (px2 - tX(prev.start.getTime()) < 4) ? tX(prev.start.getTime()) + 10 : px2
+      if (x1 > prevR + 3) { row.push(ev); placed = true; break }
+    }
+    if (!placed) rows.push([ev])
+  }
+  return rows
+}
+
+const PALETTE = [
+  { bar: '#3d6fb5', bg: '#f2f5fb', stripe: '#3d6fb5' },
+  { bar: '#b54040', bg: '#fbf2f2', stripe: '#b54040' },
+  { bar: '#3a9455', bg: '#f2fbf5', stripe: '#3a9455' },
+  { bar: '#8f7535', bg: '#fbf8f2', stripe: '#8f7535' },
+  { bar: '#6d3db5', bg: '#f5f2fb', stripe: '#6d3db5' },
+  { bar: '#348f99', bg: '#f2f8fb', stripe: '#348f99' },
+]
+
+export const renderSVG = (events, opts = {}) => {
+  const W = opts.width || 420
+
+  if (!events.length) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="48" viewBox="0 0 ${W} 48" style="font-family:sans-serif">` +
+           `<text x="${W/2}" y="28" text-anchor="middle" font-size="12" fill="#bbb">no events</text></svg>`
+  }
+
+  // ── Time bounds ────────────────────────────────────────────────────────────
   let minT = Infinity, maxT = -Infinity
   for (const ev of events) {
     minT = Math.min(minT, ev.start.getTime())
     maxT = Math.max(maxT, ev.end.getTime())
   }
-  // Pad edges 3%
-  const span = maxT - minT || 86400000
-  minT -= span * 0.03
-  maxT += span * 0.03
+  const spanMs = maxT - minT || 86400000
+  minT -= spanMs * 0.04
+  maxT += spanMs * 0.04
 
-  const plotW = W - PADDING.left - PADDING.right
-  const tX = t => PADDING.left + (t - minT) / (maxT - minT) * plotW
-
-  // Group events into lanes by group name (null → 'Events')
-  const laneMap = new Map()
+  // ── Sections ───────────────────────────────────────────────────────────────
+  const secMap = new Map()
   for (const ev of events) {
-    const key = ev.group || ''
-    if (!laneMap.has(key)) laneMap.set(key, [])
-    laneMap.get(key).push(ev)
+    const k = ev.group ?? '\0'
+    if (!secMap.has(k)) secMap.set(k, { name: ev.group ?? null, events: [] })
+    secMap.get(k).events.push(ev)
   }
+  const sections = [...secMap.values()]
+  const hasNames = sections.some(s => s.name !== null)
 
-  const lanes = [...laneMap.entries()]
-  const H = PADDING.top + lanes.length * ROW_H + TICK_H + PADDING.bottom
+  // ── Layout constants ───────────────────────────────────────────────────────
+  const PAD     = { top: 20, right: 14, bottom: 6, left: 12 }
+  const ROW_H   = 22        // height per packed event row
+  const BAR_H   = 14        // filled bar height
+  const SEC_LBL = hasNames ? 16 : 0   // section name row
+  const SEC_GAP = hasNames ? 5 : 3    // gap between sections
+  const AXIS_H  = 26        // axis line + ticks + tick labels
 
-  const lines = []
-  lines.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`)
-  lines.push(`<style>
-    .tl-axis { stroke: #ccc; stroke-width: 1; }
-    .tl-tick { stroke: #ccc; stroke-width: 1; }
-    .tl-tick-label { font: 10px sans-serif; fill: #999; }
-    .tl-lane-label { font: 10px sans-serif; fill: #888; }
-    .tl-bar { rx: 3; ry: 3; cursor: pointer; }
-    .tl-bar:hover rect { opacity: .8; }
-    .tl-bar text { font: 11px sans-serif; fill: #fff; pointer-events: none; }
-    .tl-point { cursor: pointer; }
-    .tl-point:hover circle { r: 5.5; }
-    .tl-point text { font: 11px sans-serif; fill: #334; pointer-events: none; }
+  const plotX1 = PAD.left
+  const plotX2 = W - PAD.right
+  const plotW  = plotX2 - plotX1
+  const tX     = t => plotX1 + (t - minT) / (maxT - minT) * plotW
+
+  // ── Pre-compute rows per section ──────────────────────────────────────────
+  const layouts = sections.map(sec => ({ ...sec, rows: packRows(sec.events, tX) }))
+  const secH    = l => SEC_LBL + l.rows.length * ROW_H + SEC_GAP
+
+  const totalContent = layouts.reduce((s, l) => s + secH(l), 0)
+  const axisY        = PAD.top + totalContent
+  const H            = axisY + AXIS_H + PAD.bottom
+
+  const ticks = generateTicks(minT, maxT)
+
+  // ── Build SVG ─────────────────────────────────────────────────────────────
+  const o = []
+  o.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="font-family:sans-serif;display:block">`)
+  o.push(`<style>
+    .tl-ev { cursor:pointer }
+    .tl-bar rect { transition:opacity .1s }
+    .tl-bar:hover rect { opacity:1 !important }
+    .tl-pt:hover .tl-dot { r:6 }
   </style>`)
 
-  // Axis line
-  const axisY = PADDING.top + lanes.length * ROW_H
-  lines.push(`<line class="tl-axis" x1="${PADDING.left}" y1="${axisY}" x2="${W - PADDING.right}" y2="${axisY}"/>`)
-
-  // Year ticks
-  const startYear = new Date(minT).getFullYear()
-  const endYear   = new Date(maxT).getFullYear()
-  for (let y = startYear; y <= endYear + 1; y++) {
-    const t = new Date(y, 0, 1).getTime()
-    if (t < minT || t > maxT) continue
-    const x = tX(t)
-    lines.push(`<line class="tl-tick" x1="${x}" y1="${axisY}" x2="${x}" y2="${axisY + 5}"/>`)
-    lines.push(`<text class="tl-tick-label" x="${x}" y="${axisY + TICK_H}">${y}</text>`)
+  // Vertical grid lines at major ticks (drawn behind everything)
+  for (const tk of ticks) {
+    if (!tk.major) continue
+    const x = tX(tk.t)
+    if (x <= plotX1 || x >= plotX2) continue
+    o.push(`<line x1="${r2(x)}" y1="${PAD.top}" x2="${r2(x)}" y2="${axisY}" stroke="#ebebeb" stroke-width="1"/>`)
   }
 
-  // Lane labels + events
-  const COLORS = ['#5b8dd9','#d96b5b','#5bc47a','#c4a45b','#9b5bd9','#5bd9c4']
+  // ── Sections ───────────────────────────────────────────────────────────────
+  let sY = PAD.top
 
-  lanes.forEach(([group, evs], laneIdx) => {
-    const laneY   = PADDING.top + laneIdx * ROW_H
-    const midY    = laneY + ROW_H / 2
-    const color   = COLORS[laneIdx % COLORS.length]
-    const barH    = ROW_H - 6
+  layouts.forEach((sl, si) => {
+    const col = PALETTE[si % PALETTE.length]
+    const bH  = secH(sl) - SEC_GAP   // band height (excluding gap)
 
-    if (group) {
-      lines.push(`<text class="tl-lane-label" x="${PADDING.left}" y="${midY + 4}">${escXML(group)}</text>`)
-    }
-
-    for (const ev of evs) {
-      const x1 = tX(ev.start.getTime())
-      const x2 = tX(ev.end.getTime())
-      const isPoint = (x2 - x1) < 3
-
-      if (isPoint) {
-        // Point event — circle + label to the right
-        lines.push(
-          `<g class="tl-point timeline-event" data-label="${escAttr(ev.label)}">` +
-          `<circle cx="${x1}" cy="${midY}" r="4" fill="${color}" stroke="#fff" stroke-width="1.5"/>` +
-          `<text x="${x1 + 7}" y="${midY + 4}">${escXML(ev.label)}</text>` +
-          `</g>`
-        )
-      } else {
-        // Range event — bar with clipped label
-        const barW = Math.max(x2 - x1, 4)
-        lines.push(
-          `<g class="tl-bar timeline-event" data-label="${escAttr(ev.label)}">` +
-          `<rect x="${x1}" y="${midY - barH/2}" width="${barW}" height="${barH}" fill="${color}" opacity=".85" rx="3" ry="3"/>` +
-          (barW > 40 ? `<text x="${x1 + 4}" y="${midY + 4}" clip-path="inset(0 0 0 0)">${escXML(ev.label)}</text>` : '') +
-          `<title>${escXML(ev.label)}: ${fmtDate(ev.start)}–${fmtDate(ev.end)}</title>` +
-          `</g>`
-        )
+    if (hasNames) {
+      // Background band
+      o.push(`<rect x="${plotX1}" y="${sY}" width="${plotW}" height="${bH}" fill="${col.bg}" rx="2"/>`)
+      // Left accent stripe
+      o.push(`<rect x="${plotX1}" y="${sY}" width="3" height="${bH}" fill="${col.stripe}" rx="1"/>`)
+      // Section label
+      if (sl.name) {
+        o.push(`<text x="${plotX1 + 7}" y="${sY + SEC_LBL - 4}" font-size="10" font-weight="600" fill="${col.stripe}">${escXML(sl.name)}</text>`)
       }
     }
+
+    const evTop = sY + SEC_LBL  // y where event rows start
+
+    sl.rows.forEach((row, ri) => {
+      const midY = evTop + ri * ROW_H + ROW_H / 2
+
+      row.forEach((ev, ei) => {
+        const x1 = r2(tX(ev.start.getTime()))
+        const x2 = r2(tX(ev.end.getTime()))
+        const isPoint = (x2 - x1) < 4
+
+        if (isPoint) {
+          // Alternate label height between two levels above the circle
+          const lblY = midY - ((ei + ri) % 2 === 0 ? 9 : 18)
+          o.push(
+            `<g class="tl-pt tl-ev timeline-event" data-label="${escAttr(ev.label)}">` +
+            `<rect x="${x1 - 10}" y="${midY - 10}" width="20" height="20" fill="transparent"/>` +
+            `<circle class="tl-dot" cx="${x1}" cy="${midY}" r="5" fill="${col.bar}" stroke="#fff" stroke-width="1.5"/>` +
+            (ev.label ? `<text x="${x1}" y="${lblY}" text-anchor="middle" font-size="10" fill="${col.bar}" style="pointer-events:none">${escXML(ev.label)}</text>` : '') +
+            `<title>${escXML(ev.label || '')}: ${fmtDate(ev.start)}</title>` +
+            `</g>`
+          )
+        } else {
+          const barW = Math.max(x2 - x1, 3)
+          const barY = r2(midY - BAR_H / 2)
+          const inside = barW > 52
+          o.push(
+            `<g class="tl-bar tl-ev timeline-event" data-label="${escAttr(ev.label)}">` +
+            `<rect x="${x1}" y="${barY}" width="${r2(barW)}" height="${BAR_H}" fill="${col.bar}" opacity=".82" rx="3"/>` +
+            (inside ? `<text x="${x1 + 5}" y="${barY + BAR_H - 4}" font-size="10" fill="#fff" style="pointer-events:none">${escXML(clipText(ev.label, barW - 10))}</text>` : '') +
+            `<title>${escXML(ev.label || '')}: ${fmtDate(ev.start)}–${fmtDate(ev.end)}</title>` +
+            `</g>`
+          )
+        }
+      })
+    })
+
+    sY += secH(sl)
   })
 
-  lines.push(`</svg>`)
-  return lines.join('\n')
-}
+  // ── Time axis ──────────────────────────────────────────────────────────────
+  o.push(`<line x1="${plotX1}" y1="${axisY}" x2="${plotX2}" y2="${axisY}" stroke="#ccc" stroke-width="1.5"/>`)
 
-const escXML  = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-const escAttr = s => (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')
+  for (const tk of ticks) {
+    const x = tX(tk.t)
+    if (x < plotX1 || x > plotX2) continue
+    o.push(`<line x1="${r2(x)}" y1="${axisY}" x2="${r2(x)}" y2="${axisY + (tk.major ? 5 : 3)}" stroke="${tk.major ? '#bbb' : '#ddd'}" stroke-width="1"/>`)
+    if (tk.label) {
+      o.push(`<text x="${r2(x)}" y="${axisY + 18}" text-anchor="middle" font-size="10" fill="#999">${tk.label}</text>`)
+    }
+  }
+
+  o.push(`</svg>`)
+  return o.join('\n')
+}
 
 // ── emit ──────────────────────────────────────────────────────────────────────
 

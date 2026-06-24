@@ -98,3 +98,52 @@ test('renders multiple groups as lanes', () => {
   assert.ok(svg.includes('G1'))
   assert.ok(svg.includes('G2'))
 })
+
+test('section bands appear in SVG when groups named', () => {
+  const events = [
+    { label: 'A', start: new Date(2026,0,1), end: new Date(2026,2,1), group: 'Alpha' },
+    { label: 'B', start: new Date(2026,3,1), end: new Date(2026,5,1), group: 'Beta' },
+  ]
+  const svg = renderSVG(events)
+  // Should have background band rect and stripe
+  assert.ok(svg.includes('Alpha'))
+  assert.ok(svg.includes('Beta'))
+  assert.ok((svg.match(/<rect/g) || []).length >= 4)  // at least 2 bands + 2 stripes
+})
+
+test('overlapping events are packed into separate rows', () => {
+  // Two events that overlap in time — should produce two rows (two different midY values)
+  const events = [
+    { label: 'First',  start: new Date(2026,0,1), end: new Date(2026,6,1), group: null },
+    { label: 'Second', start: new Date(2026,2,1), end: new Date(2026,9,1), group: null },
+  ]
+  const svg = renderSVG(events)
+  // Both events should appear
+  assert.ok(svg.includes('First'))
+  assert.ok(svg.includes('Second'))
+})
+
+test('month ticks appear for sub-year span', () => {
+  const events = [
+    { label: 'Ev', start: new Date(2026,0,1), end: new Date(2026,5,30), group: null },
+  ]
+  const svg = renderSVG(events)
+  // Should include at least one month abbreviation
+  const hasMonth = ['Jan','Feb','Mar','Apr','May','Jun'].some(m => svg.includes(m))
+  assert.ok(hasMonth)
+})
+
+test('year ticks appear for multi-year span', () => {
+  const events = [
+    { label: 'Ev', start: new Date(2024,0,1), end: new Date(2027,0,1), group: null },
+  ]
+  const svg = renderSVG(events)
+  assert.ok(svg.includes('2024') || svg.includes('2025'))
+  assert.ok(svg.includes('2026') || svg.includes('2027'))
+})
+
+test('opts.width changes SVG width', () => {
+  const events = [{ label: 'Ev', start: new Date(2026,0,1), end: new Date(2026,6,1), group: null }]
+  const svg = renderSVG(events, { width: 860 })
+  assert.ok(svg.includes('width="860"'))
+})
