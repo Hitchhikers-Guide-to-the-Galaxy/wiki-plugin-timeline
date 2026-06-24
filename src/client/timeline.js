@@ -332,6 +332,12 @@ export const bind = ($item, item) => {
     setTimeout(send, 800)
   })
 
+  // ── Edit — dblclick anywhere outside the SVG ──────────────────────────────
+  $item.on('dblclick', e => {
+    if ($(e.target).closest('svg').length) return
+    wiki.textEditor($item, item)
+  })
+
   // ── Listen for navigation messages from the dialog ─────────────────────────
   const onMessage = e => {
     if (e.data?.action !== 'doInternalLink') return

@@ -13,6 +13,41 @@
     },
     {
       "type": "markdown",
+      "id": "26zn6d0j",
+      "text": "## Examples"
+    },
+    {
+      "type": "markdown",
+      "id": "htnw67t1",
+      "text": "**Point events** — named milestones on a shared axis"
+    },
+    {
+      "type": "timeline",
+      "id": "74zdahyg",
+      "text": "2026-01-15 Project Kickoff\n2026-02-28 First Prototype\n2026-04-10 User Testing\n2026-05-20 Beta Release\n2026-06-30 Launch"
+    },
+    {
+      "type": "markdown",
+      "id": "3wdyh6k9",
+      "text": "**Range events** — spans of time with a start and end"
+    },
+    {
+      "type": "timeline",
+      "id": "e4j875tc",
+      "text": "2026-01-01..2026-01-31 Research\n2026-02-01..2026-04-30 Development\n2026-05-01..2026-05-31 Beta Testing\n2026-06-01..2026-06-30 Launch Window"
+    },
+    {
+      "type": "markdown",
+      "id": "ogk4i32o",
+      "text": "**Sections** — group events into labelled swimlanes using `section`"
+    },
+    {
+      "type": "timeline",
+      "id": "u80qm53u",
+      "text": "section Demoscene\n2026-02-10 First Demo\n2026-03-20..2026-03-22 Demoparty\n2026-05-15 Release\n\nsection Fedwiki\n2026-02-01..2026-05-30 Wiki Wild Compo\n2026-06-15 Judging"
+    },
+    {
+      "type": "markdown",
       "id": "db26ae488c281829",
       "text": "## DSL"
     },
@@ -102,6 +137,76 @@
       },
       "date": 1750758000000,
       "provenance": "Authored by an AI agent — Claude Code (claude-sonnet-4-6) via the fedwiki-create-plugin skill. [https://claude.com/claude-code Claude Code]"
+    },
+    {
+      "type": "add",
+      "id": "9neugzyt",
+      "date": 1782339438554,
+      "item": {
+        "type": "markdown",
+        "id": "26zn6d0j",
+        "text": "## Examples"
+      }
+    },
+    {
+      "type": "add",
+      "id": "2b558faa",
+      "date": 1782339438554,
+      "item": {
+        "type": "markdown",
+        "id": "htnw67t1",
+        "text": "**Point events** — named milestones on a shared axis"
+      }
+    },
+    {
+      "type": "add",
+      "id": "rk21mvqt",
+      "date": 1782339438554,
+      "item": {
+        "type": "timeline",
+        "id": "74zdahyg",
+        "text": "2026-01-15 Project Kickoff\n2026-02-28 First Prototype\n2026-04-10 User Testing\n2026-05-20 Beta Release\n2026-06-30 Launch"
+      }
+    },
+    {
+      "type": "add",
+      "id": "bhsnyjf7",
+      "date": 1782339438554,
+      "item": {
+        "type": "markdown",
+        "id": "3wdyh6k9",
+        "text": "**Range events** — spans of time with a start and end"
+      }
+    },
+    {
+      "type": "add",
+      "id": "zkhilylx",
+      "date": 1782339438554,
+      "item": {
+        "type": "timeline",
+        "id": "e4j875tc",
+        "text": "2026-01-01..2026-01-31 Research\n2026-02-01..2026-04-30 Development\n2026-05-01..2026-05-31 Beta Testing\n2026-06-01..2026-06-30 Launch Window"
+      }
+    },
+    {
+      "type": "add",
+      "id": "8etwz2mv",
+      "date": 1782339438554,
+      "item": {
+        "type": "markdown",
+        "id": "ogk4i32o",
+        "text": "**Sections** — group events into labelled swimlanes using `section`"
+      }
+    },
+    {
+      "type": "add",
+      "id": "ecm5vlhp",
+      "date": 1782339438554,
+      "item": {
+        "type": "timeline",
+        "id": "u80qm53u",
+        "text": "section Demoscene\n2026-02-10 First Demo\n2026-03-20..2026-03-22 Demoparty\n2026-05-15 Release\n\nsection Fedwiki\n2026-02-01..2026-05-30 Wiki Wild Compo\n2026-06-15 Judging"
+      }
     }
   ],
   "plugin": "timeline"
