@@ -48,6 +48,21 @@
     },
     {
       "type": "markdown",
+      "id": "palette-intro",
+      "text": "**Palette** — colour the whole diagram with `PALETTE`"
+    },
+    {
+      "type": "timeline",
+      "id": "palette-warm",
+      "text": "PALETTE warm\nsection Demoscene\n2026-02-10 First Demo\n2026-03-20..2026-03-22 Demoparty\n2026-05-15 Release\n\nsection Fedwiki\n2026-02-01..2026-05-30 Wiki Wild Compo\n2026-06-15 Judging"
+    },
+    {
+      "type": "timeline",
+      "id": "palette-neon",
+      "text": "PALETTE neon\nsection Demoscene\n2026-02-10 First Demo\n2026-03-20..2026-03-22 Demoparty\n2026-05-15 Release\n\nsection Fedwiki\n2026-02-01..2026-05-30 Wiki Wild Compo\n2026-06-15 Judging"
+    },
+    {
+      "type": "markdown",
       "id": "db26ae488c281829",
       "text": "## DSL"
     },
@@ -64,7 +79,7 @@
     {
       "type": "markdown",
       "id": "650016c2aec35a63",
-      "text": "| Keyword | Meaning |\n|---|---|\n| `LINEUP` | Scan upstream `.calendar-source` items for events |\n| `section Name` | Start a named group lane |\n| `YYYY-MM-DD Label` | Point event |\n| `YYYY-MM-DD..YYYY-MM-DD Label` | Range event |\n| `#GroupName` | Inline group tag (overrides current section) |"
+      "text": "| Keyword | Meaning |\n|---|---|\n| `LINEUP` | Scan upstream `.calendar-source` items for events |\n| `PALETTE name` | Apply a named palette: `default` `warm` `cool` `earth` `mono` `neon` |\n| `PALETTE #hex …` | Apply custom hex colours (space-separated) |\n| `PALETTE colour …` | Apply named colours: `red` `blue` `green` `orange` `purple` `teal` `pink` `cyan` `indigo` `lime` `amber` `violet` `rose` `navy` `brown` `grey` `yellow` |\n| `section Name` | Start a named group lane |\n| `YYYY-MM-DD Label` | Point event |\n| `YYYY-MM-DD..YYYY-MM-DD Label` | Range event |\n| `#GroupName` | Inline group tag (overrides current section) |"
     },
     {
       "type": "markdown",
@@ -116,7 +131,7 @@
           {
             "type": "markdown",
             "id": "650016c2aec35a63",
-            "text": "| Keyword | Meaning |\n|---|---|\n| `LINEUP` | Scan upstream `.calendar-source` items for events |\n| `section Name` | Start a named group lane |\n| `YYYY-MM-DD Label` | Point event |\n| `YYYY-MM-DD..YYYY-MM-DD Label` | Range event |\n| `#GroupName` | Inline group tag (overrides current section) |"
+            "text": "| Keyword | Meaning |\n|---|---|\n| `LINEUP` | Scan upstream `.calendar-source` items for events |\n| `PALETTE name` | Apply a named palette: `default` `warm` `cool` `earth` `mono` `neon` |\n| `PALETTE #hex …` | Apply custom hex colours (space-separated) |\n| `PALETTE colour …` | Apply named colours: `red` `blue` `green` `orange` `purple` `teal` `pink` `cyan` `indigo` `lime` `amber` `violet` `rose` `navy` `brown` `grey` `yellow` |\n| `section Name` | Start a named group lane |\n| `YYYY-MM-DD Label` | Point event |\n| `YYYY-MM-DD..YYYY-MM-DD Label` | Range event |\n| `#GroupName` | Inline group tag (overrides current section) |"
           },
           {
             "type": "markdown",

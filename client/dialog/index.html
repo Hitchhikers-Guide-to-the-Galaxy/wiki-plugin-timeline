@@ -17,16 +17,53 @@ body { background: #1a1a2e; overflow: hidden; user-select: none; }
   background: rgba(0,0,0,.35); padding: 5px 12px; border-radius: 20px;
   pointer-events: none; white-space: nowrap;
 }
+#export {
+  position: fixed; top: 14px; right: 14px;
+  font: 12px sans-serif; color: #cdd; cursor: pointer;
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18);
+  padding: 6px 12px; border-radius: 6px;
+  transition: background .12s, color .12s;
+}
+#export:hover { background: rgba(255,255,255,.18); color: #fff; }
 </style>
 </head>
 <body>
 <div id="stage"><svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg></div>
+<button id="export" title="Download a flat SVG — interaction metadata stripped (see Save or Export)">Export SVG</button>
 <div id="hint">Drag to pan &nbsp;·&nbsp; Scroll to zoom &nbsp;·&nbsp; Click event to open page in source tab &nbsp;·&nbsp; Close tab to return</div>
 <script>
 (function () {
   const stage = document.getElementById('stage')
 
   let pageKey, context = []
+
+  // ── Export — download a flat SVG, round-trip hooks stripped ────────────────
+  document.getElementById('export').addEventListener('click', () => {
+    const live = stage.querySelector('svg')
+    if (!live) return
+    const svg = live.cloneNode(true)
+    // Neutralise pan/zoom — restore the natural viewBox from width/height
+    const w = parseFloat(svg.getAttribute('width'))
+    const h = parseFloat(svg.getAttribute('height'))
+    if (w && h) svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h)
+    // Strip interaction metadata → a plain picture (see the Save or Export page)
+    svg.querySelectorAll('[fill="transparent"]').forEach(n => n.remove())
+    svg.querySelectorAll('style').forEach(n => n.remove())
+    svg.querySelectorAll('[data-label]').forEach(n => n.removeAttribute('data-label'))
+    svg.querySelectorAll('[class]').forEach(n => {
+      if (/timeline-event|tl-/.test(n.getAttribute('class'))) n.removeAttribute('class')
+    })
+    const out = new XMLSerializer().serializeToString(svg)
+    const blob = new Blob([out], { type: 'image/svg+xml' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'timeline.svg'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  })
 
   // Receive SVG + context from opener tab
   window.addEventListener('message', e => {

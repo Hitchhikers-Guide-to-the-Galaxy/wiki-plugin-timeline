@@ -1,17 +1,22 @@
 {
   "name": "wiki-plugin-timeline",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Federated Wiki plugin — renders a navigable SVG timeline from Date Plugin items in the lineup",
   "type": "module",
   "main": "client/timeline.js",
-  "files": ["client", "pages", "factory.json"],
+  "files": [
+    "client",
+    "pages",
+    "factory.json"
+  ],
   "scripts": {
     "build": "node scripts/build.js",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {},
   "devDependencies": {
-    "esbuild": "^0.25.0"
+    "esbuild": "^0.25.0",
+    "@fortyfoxes/wiki-capsule": "^0.1.0"
   },
   "author": "David Bovill",
   "license": "MIT",
@@ -23,5 +28,7 @@
     "url": "https://github.com/Hitchhikers-Guide-to-the-Galaxy/wiki-plugin-timeline/issues"
   },
   "homepage": "https://github.com/Hitchhikers-Guide-to-the-Galaxy/wiki-plugin-timeline#readme",
-  "engines": { "node": ">=18" }
+  "engines": {
+    "node": ">=18"
+  }
 }

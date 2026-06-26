@@ -4,10 +4,15 @@
 //   - Date Plugin items upstream in the lineup (when LINEUP keyword present)
 //   - Frozen lineup snapshots (item.frozen)
 
+import { freezeToGhost } from '@fortyfoxes/wiki-capsule'
+
 // ── Parser ────────────────────────────────────────────────────────────────────
 // DSL (Mermaid gantt-inspired):
 //
 //   LINEUP                              ← enable lineup scanning
+//   PALETTE warm                        ← named built-in palette
+//   PALETTE #e040fb #00e5ff #69f0ae     ← custom hex colours
+//   PALETTE red blue green              ← named CSS colours
 //   section GroupName                  ← start a named group
 //   2026-01-15 Event Label             ← point event
 //   2026-02-01..2026-05-30 Event Label ← range event
@@ -22,6 +27,7 @@ export const parseText = text => {
   const lines   = (text || '').split(/\n/)
   let lineup    = false
   let section   = null
+  let palette   = null
   const events  = []
 
   for (const raw of lines) {
@@ -29,6 +35,18 @@ export const parseText = text => {
     if (!line || line.startsWith('//')) continue
 
     if (line === 'LINEUP') { lineup = true; continue }
+
+    const paletteMatch = line.match(/^PALETTE\s+(.+)$/i)
+    if (paletteMatch) {
+      const arg = paletteMatch[1].trim()
+      if (NAMED_PALETTES[arg]) {
+        palette = NAMED_PALETTES[arg]
+      } else {
+        const tokens = arg.split(/\s+/).filter(Boolean)
+        if (tokens.length) palette = tokens.map(colourToEntry)
+      }
+      continue
+    }
 
     const secMatch = line.match(/^section\s+(.+)$/i)
     if (secMatch) { section = secMatch[1].trim(); continue }
@@ -56,7 +74,7 @@ export const parseText = text => {
     }
   }
 
-  return { lineup, events }
+  return { lineup, events, palette }
 }
 
 const labelAndGroup = (rest, defaultGroup) => {
@@ -122,6 +140,10 @@ const fmtDate = d => `${pad2(d.getDate())} ${MONTHS_SHORT[d.getMonth()]} ${d.get
 const r2    = n => Math.round(n * 100) / 100
 const escXML  = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
 const escAttr = s => (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')
+// Declarative open-page affordance so frozen timeline capsules stay click-navigable
+// in the SVG Plugin (which reads data-fedwiki-action), matching mermaid/diagram nodes.
+const fedwikiAttrs = label =>
+  label ? ` data-fedwiki-action="open-page" data-fedwiki-page="${escAttr(label)}"` : ''
 
 // Clip string to fit within pixel width (rough 6.2px per char at 10px sans-serif)
 const clipText = (s, pxW) => {
@@ -190,14 +212,84 @@ const packRows = (evs, tX) => {
   return rows
 }
 
-const PALETTE = [
-  { bar: '#3d6fb5', bg: '#f2f5fb', stripe: '#3d6fb5' },
-  { bar: '#b54040', bg: '#fbf2f2', stripe: '#b54040' },
-  { bar: '#3a9455', bg: '#f2fbf5', stripe: '#3a9455' },
-  { bar: '#8f7535', bg: '#fbf8f2', stripe: '#8f7535' },
-  { bar: '#6d3db5', bg: '#f5f2fb', stripe: '#6d3db5' },
-  { bar: '#348f99', bg: '#f2f8fb', stripe: '#348f99' },
-]
+// ── Palette system ────────────────────────────────────────────────────────────
+
+const lightenHex = (hex, amount = 0.88) => {
+  const h = hex.replace('#', '')
+  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h
+  const r = parseInt(full.slice(0, 2), 16)
+  const g = parseInt(full.slice(2, 4), 16)
+  const b = parseInt(full.slice(4, 6), 16)
+  const lr = Math.round(r + (255 - r) * amount)
+  const lg = Math.round(g + (255 - g) * amount)
+  const lb = Math.round(b + (255 - b) * amount)
+  return `#${lr.toString(16).padStart(2, '0')}${lg.toString(16).padStart(2, '0')}${lb.toString(16).padStart(2, '0')}`
+}
+
+const COLOUR_NAMES = {
+  red: '#d32f2f', blue: '#1565c0', green: '#2e7d32',
+  orange: '#e65100', purple: '#6a1b9a', teal: '#00695c',
+  pink: '#c2185b', yellow: '#f9a825', brown: '#4e342e',
+  grey: '#546e7a', gray: '#546e7a', indigo: '#283593',
+  cyan: '#00838f', lime: '#558b2f', amber: '#ff6f00',
+  navy: '#1a237e', rose: '#ad1457', violet: '#4527a0',
+}
+
+const colourToEntry = c => {
+  const hex = c.startsWith('#') ? c : (COLOUR_NAMES[c.toLowerCase()] || '#888888')
+  return { bar: hex, bg: lightenHex(hex), stripe: hex }
+}
+
+export const NAMED_PALETTES = {
+  default: [
+    { bar: '#3d6fb5', bg: '#f2f5fb', stripe: '#3d6fb5' },
+    { bar: '#b54040', bg: '#fbf2f2', stripe: '#b54040' },
+    { bar: '#3a9455', bg: '#f2fbf5', stripe: '#3a9455' },
+    { bar: '#8f7535', bg: '#fbf8f2', stripe: '#8f7535' },
+    { bar: '#6d3db5', bg: '#f5f2fb', stripe: '#6d3db5' },
+    { bar: '#348f99', bg: '#f2f8fb', stripe: '#348f99' },
+  ],
+  warm: [
+    { bar: '#c0392b', bg: '#fdf2f1', stripe: '#c0392b' },
+    { bar: '#e67e22', bg: '#fef9f0', stripe: '#e67e22' },
+    { bar: '#f39c12', bg: '#fefdf0', stripe: '#f39c12' },
+    { bar: '#d35400', bg: '#fdf5f0', stripe: '#d35400' },
+    { bar: '#922b21', bg: '#fdf0ef', stripe: '#922b21' },
+    { bar: '#cb4335', bg: '#fdf2f1', stripe: '#cb4335' },
+  ],
+  cool: [
+    { bar: '#2471a3', bg: '#eaf4fb', stripe: '#2471a3' },
+    { bar: '#148f77', bg: '#e8f8f5', stripe: '#148f77' },
+    { bar: '#1a5276', bg: '#e8f4f8', stripe: '#1a5276' },
+    { bar: '#6c3483', bg: '#f4ecf7', stripe: '#6c3483' },
+    { bar: '#0e6655', bg: '#e8f8f5', stripe: '#0e6655' },
+    { bar: '#1f618d', bg: '#e9f2f9', stripe: '#1f618d' },
+  ],
+  earth: [
+    { bar: '#795548', bg: '#f4efee', stripe: '#795548' },
+    { bar: '#558b2f', bg: '#f1f8e9', stripe: '#558b2f' },
+    { bar: '#6d4c41', bg: '#f3eeec', stripe: '#6d4c41' },
+    { bar: '#827717', bg: '#f9f8e7', stripe: '#827717' },
+    { bar: '#4e342e', bg: '#f2e9e8', stripe: '#4e342e' },
+    { bar: '#33691e', bg: '#f1f8e9', stripe: '#33691e' },
+  ],
+  mono: [
+    { bar: '#37474f', bg: '#f4f5f6', stripe: '#37474f' },
+    { bar: '#546e7a', bg: '#f5f6f7', stripe: '#546e7a' },
+    { bar: '#607d8b', bg: '#f6f7f8', stripe: '#607d8b' },
+    { bar: '#263238', bg: '#f3f4f5', stripe: '#263238' },
+    { bar: '#455a64', bg: '#f4f5f6', stripe: '#455a64' },
+    { bar: '#78909c', bg: '#f6f7f8', stripe: '#78909c' },
+  ],
+  neon: [
+    { bar: '#e040fb', bg: '#fce4ff', stripe: '#e040fb' },
+    { bar: '#00bcd4', bg: '#e0f7fa', stripe: '#00bcd4' },
+    { bar: '#00e676', bg: '#e0fff0', stripe: '#00e676' },
+    { bar: '#ff6d00', bg: '#fff3e0', stripe: '#ff6d00' },
+    { bar: '#ff1744', bg: '#ffe8ea', stripe: '#ff1744' },
+    { bar: '#ffd740', bg: '#fffde7', stripe: '#ffd740' },
+  ],
+}
 
 export const renderSVG = (events, opts = {}) => {
   const W = opts.width || 420
@@ -229,9 +321,9 @@ export const renderSVG = (events, opts = {}) => {
 
   // ── Layout constants ───────────────────────────────────────────────────────
   const PAD     = { top: 20, right: 14, bottom: 6, left: 12 }
-  const ROW_H   = 22        // height per packed event row
+  const ROW_H   = 26        // height per packed event row
   const BAR_H   = 14        // filled bar height
-  const SEC_LBL = hasNames ? 16 : 0   // section name row
+  const SEC_LBL = hasNames ? 20 : 0   // section name row
   const SEC_GAP = hasNames ? 5 : 3    // gap between sections
   const AXIS_H  = 26        // axis line + ticks + tick labels
 
@@ -272,7 +364,8 @@ export const renderSVG = (events, opts = {}) => {
   let sY = PAD.top
 
   layouts.forEach((sl, si) => {
-    const col = PALETTE[si % PALETTE.length]
+    const activePalette = opts.palette || NAMED_PALETTES.default
+    const col = activePalette[si % activePalette.length]
     const bH  = secH(sl) - SEC_GAP   // band height (excluding gap)
 
     if (hasNames) {
@@ -280,9 +373,9 @@ export const renderSVG = (events, opts = {}) => {
       o.push(`<rect x="${plotX1}" y="${sY}" width="${plotW}" height="${bH}" fill="${col.bg}" rx="2"/>`)
       // Left accent stripe
       o.push(`<rect x="${plotX1}" y="${sY}" width="3" height="${bH}" fill="${col.stripe}" rx="1"/>`)
-      // Section label
+      // Section label — anchored near top of band, not 4px before evTop
       if (sl.name) {
-        o.push(`<text x="${plotX1 + 7}" y="${sY + SEC_LBL - 4}" font-size="10" font-weight="600" fill="${col.stripe}">${escXML(sl.name)}</text>`)
+        o.push(`<text x="${plotX1 + 7}" y="${sY + 11}" font-size="10" font-weight="600" fill="${col.stripe}">${escXML(sl.name)}</text>`)
       }
     }
 
@@ -297,13 +390,19 @@ export const renderSVG = (events, opts = {}) => {
         const isPoint = (x2 - x1) < 4
 
         if (isPoint) {
-          // Alternate label height between two levels above the circle
-          const lblY = midY - ((ei + ri) % 2 === 0 ? 9 : 18)
+          // Alternate label height between two levels above the circle.
+          // Base offset clears a same-row pill (top at midY-7) with breathing room.
+          const lblY = midY - ((ei + ri) % 2 === 0 ? 12 : 21)
+          // Clamp label so it doesn't overflow the plot edges (6.2px per char estimate)
+          const halfW = (ev.label ? ev.label.length * 6.2 / 2 : 0)
+          let lblX = x1, anchor = 'middle'
+          if (x1 - halfW < plotX1 + 2) { lblX = Math.max(x1, plotX1 + 2); anchor = 'start' }
+          else if (x1 + halfW > plotX2 - 2) { lblX = Math.min(x1, plotX2 - 2); anchor = 'end' }
           o.push(
-            `<g class="tl-pt tl-ev timeline-event" data-label="${escAttr(ev.label)}">` +
+            `<g class="tl-pt tl-ev timeline-event" data-label="${escAttr(ev.label)}"${fedwikiAttrs(ev.label)}>` +
             `<rect x="${x1 - 10}" y="${midY - 10}" width="20" height="20" fill="transparent"/>` +
             `<circle class="tl-dot" cx="${x1}" cy="${midY}" r="5" fill="${col.bar}" stroke="#fff" stroke-width="1.5"/>` +
-            (ev.label ? `<text x="${x1}" y="${lblY}" text-anchor="middle" font-size="10" fill="${col.bar}" style="pointer-events:none">${escXML(ev.label)}</text>` : '') +
+            (ev.label ? `<text x="${r2(lblX)}" y="${lblY}" text-anchor="${anchor}" font-size="10" fill="${col.bar}" style="pointer-events:none">${escXML(ev.label)}</text>` : '') +
             `<title>${escXML(ev.label || '')}: ${fmtDate(ev.start)}</title>` +
             `</g>`
           )
@@ -312,7 +411,7 @@ export const renderSVG = (events, opts = {}) => {
           const barY = r2(midY - BAR_H / 2)
           const inside = barW > 52
           o.push(
-            `<g class="tl-bar tl-ev timeline-event" data-label="${escAttr(ev.label)}">` +
+            `<g class="tl-bar tl-ev timeline-event" data-label="${escAttr(ev.label)}"${fedwikiAttrs(ev.label)}>` +
             `<rect x="${x1}" y="${barY}" width="${r2(barW)}" height="${BAR_H}" fill="${col.bar}" opacity=".82" rx="3"/>` +
             (inside ? `<text x="${x1 + 5}" y="${barY + BAR_H - 4}" font-size="10" fill="#fff" style="pointer-events:none">${escXML(clipText(ev.label, barW - 10))}</text>` : '') +
             `<title>${escXML(ev.label || '')}: ${fmtDate(ev.start)}–${fmtDate(ev.end)}</title>` +
@@ -349,12 +448,12 @@ const EXPAND_ICON =
   `<path d="M0 0h4v1.5H1.5V4H0V0zm8 0h4v4h-1.5V1.5H8V0zM0 8h1.5v2.5H4V12H0V8zm9.5 2.5V8H11v4H7v-1.5h2.5z"/>` +
   `</svg>`
 
-const mkControls = (frozen) => {
-  const fTitle = frozen ? 'Thaw — shift-click to restore live updates' : 'Freeze lineup events into this item'
+const mkControls = () => {
+  const sTitle = 'Freeze as a portable capsule page (then fork/keep to save)'
   const eTitle = 'Open fullscreen in new tab'
   return (
     `<div class="tl-controls">` +
-    `<span class="tl-btn tl-freeze${frozen ? ' tl-frozen' : ''}" title="${fTitle}">❄</span>` +
+    `<span class="tl-btn tl-save" title="${sTitle}">❄</span>` +
     `<span class="tl-btn tl-expand" title="${eTitle}">${EXPAND_ICON}</span>` +
     `</div>`
   )
@@ -374,7 +473,7 @@ const TL_CSS = `<style id="wiki-tl-styles">
   transition: background .1s, color .1s;
 }
 .tl-btn:hover { background: #f0f0f0; color: #555 }
-.tl-frozen { color: #3d6fb5 !important }
+.tl-saved { color: #3a9455 !important }
 </style>`
 
 let tlCSSInjected = false
@@ -388,15 +487,15 @@ const injectTLCSS = () => {
 
 export const emit = ($item, item) => {
   if (typeof document !== 'undefined') injectTLCSS()
-  const { events: authoredEvents } = parseText(item.text)
+  const { events: authoredEvents, palette } = parseText(item.text)
   const events = item.frozen
     ? [...(item.frozen || []).map(normaliseStoredEvent), ...authoredEvents]
     : authoredEvents
 
   $item.html(
     `<div class="wiki-plugin-timeline">` +
-    renderSVG(events) +
-    mkControls(!!item.frozen) +
+    renderSVG(events, { palette }) +
+    mkControls() +
     `</div>`
   )
 }
@@ -412,12 +511,12 @@ const normaliseStoredEvent = ev => ({
 
 export const bind = ($item, item) => {
   injectTLCSS()
-  const { events: authoredEvents } = parseText(item.text)
+  const { events: authoredEvents, palette } = parseText(item.text)
   const events = collect($item, item, authoredEvents)
 
   $item.find('.wiki-plugin-timeline').html(
-    renderSVG(events) +
-    mkControls(!!item.frozen)
+    renderSVG(events, { palette }) +
+    mkControls()
   )
 
   // ── Navigation — click on any .timeline-event ──────────────────────────────
@@ -430,27 +529,16 @@ export const bind = ($item, item) => {
     } catch (_) {}
   })
 
-  // ── Freeze / Thaw ──────────────────────────────────────────────────────────
-  $item.find('.tl-freeze').on('click', function (e) {
-    if (e.shiftKey && item.frozen) {
-      delete item.frozen
-      delete item.svg
-    } else if (!item.frozen) {
-      const { events: authored } = parseText(item.text)
-      const allEvents = collect($item, item, authored)
-      item.frozen = allEvents.filter(ev => !authored.includes(ev)).map(ev => ({
-        label: ev.label,
-        start: ev.start.toISOString(),
-        end:   ev.end.toISOString(),
-        group: ev.group,
-      }))
-    } else {
-      return
-    }
+  // ── Freeze as a portable capsule page ──────────────────────────────────────
+  // Publish the rendered timeline as a client-side ghost capsule page (no server):
+  // the SVG Plugin shows the picture and the `timeline` source travels alongside so
+  // the page stays editable. Persist with the wiki's native fork/keep. No thaw.
+  $item.find('.tl-save').on('click', function () {
     try {
-      const $page = $item.closest('.page')
-      wiki.pageHandler.put($page, { type: 'edit', id: item.id, item })
-      wiki.doPlugin($item.empty(), item)
+      const svg = renderSVG(events, { width: 1200, palette })
+      freezeToGhost($item, svg, 'timeline', item.text || '')
+      this.classList.add('tl-saved')
+      setTimeout(() => this.classList.remove('tl-saved'), 1200)
     } catch (_) {}
   })
 
@@ -463,7 +551,7 @@ export const bind = ($item, item) => {
     let context
     try { context = wiki.lineup.atKey(pageKey).getContext() } catch (_) { context = [] }
 
-    const svgFull = renderSVG(events, { width: 1200 })
+    const svgFull = renderSVG(events, { width: 1200, palette })
     const send = () => dialogTab?.postMessage({ svg: svgFull, pageKey, context }, '*')
 
     dialogTab = window.open('/plugins/timeline/dialog/', '_blank')
@@ -489,7 +577,7 @@ export const bind = ($item, item) => {
     if (e.data?.action === 'ready') {
       let ctx
       try { ctx = wiki.lineup.atKey(pageKey).getContext() } catch (_) { ctx = [] }
-      const svgFull = renderSVG(events, { width: 1200 })
+      const svgFull = renderSVG(events, { width: 1200, palette })
       dialogTab?.postMessage({ svg: svgFull, pageKey, context: ctx }, '*')
       return
     }
