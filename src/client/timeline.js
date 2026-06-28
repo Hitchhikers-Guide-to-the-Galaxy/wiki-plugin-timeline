@@ -527,7 +527,7 @@ const injectTLCSS = () => {
 
 export const emit = ($item, item) => {
   if (typeof document !== 'undefined') injectTLCSS()
-  const { events: authoredEvents, palette } = parseText(item.text)
+  const { events, palette } = parseText(item.text)
   $item.html(
     `<div class="wiki-plugin-timeline">` +
     renderSVG(events, { palette }) +
