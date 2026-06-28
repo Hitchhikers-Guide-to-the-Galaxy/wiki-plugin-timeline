@@ -7,9 +7,11 @@
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: #1a1a2e; overflow: hidden; user-select: none; }
-#stage { width: 100vw; height: 100vh; cursor: grab; }
+#stage { width: 100vw; min-height: 100vh; cursor: grab; overflow-x: hidden; }
 #stage.dragging { cursor: grabbing; }
-#stage svg { display: block; width: 100%; height: 100%; }
+/* height:auto lets the SVG keep its natural aspect ratio rather than
+   letterboxing a wide/short timeline into a tiny band */
+#stage svg { display: block; width: 100%; height: auto; }
 #hint {
   position: fixed; bottom: 14px; left: 50%;
   transform: translateX(-50%);
