@@ -2,8 +2,8 @@
 // Renders a navigable SVG timeline from:
 //   - Events authored directly in the item DSL
 //   - Date Plugin items upstream in the lineup (when LINEUP keyword present)
-//   - Frozen lineup snapshots (item.frozen)
 
+import { freezeToGhost } from '@fortyfoxes/wiki-capsule'
 
 // ── Parser ────────────────────────────────────────────────────────────────────
 // DSL (Mermaid gantt-inspired):
@@ -488,12 +488,18 @@ const EXPAND_ICON =
   `<path d="M0 0h4v1.5H1.5V4H0V0zm8 0h4v4h-1.5V1.5H8V0zM0 8h1.5v2.5H4V12H0V8zm9.5 2.5V8H11v4H7v-1.5h2.5z"/>` +
   `</svg>`
 
+// Ghost-page export icon — a stylised ghost silhouette (12×12)
+const GHOST_ICON =
+  `<svg width="13" height="13" viewBox="0 0 12 12" fill="currentColor" style="display:block">` +
+  `<path d="M6 0a5 5 0 0 0-5 5v6l1.8-1.4L4.5 11l1.5-1.2L7.5 11l1.7-1.4L11 11V5A5 5 0 0 0 6 0zm-1.5 6a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5zm3 0a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5z"/>` +
+  `</svg>`
+
 const mkControls = () => {
-  const sTitle = 'Freeze — capture LINEUP events into item text so they persist (double-click to edit; restore LINEUP to thaw)'
+  const gTitle = 'Export as ghost page — creates a portable SVG page (fork it to keep)'
   const eTitle = 'Open fullscreen in new tab'
   return (
     `<div class="tl-controls">` +
-    `<span class="tl-btn tl-save" title="${sTitle}">❄</span>` +
+    `<span class="tl-btn tl-ghost" title="${gTitle}">${GHOST_ICON}</span>` +
     `<span class="tl-btn tl-expand" title="${eTitle}">${EXPAND_ICON}</span>` +
     `</div>`
   )
@@ -561,20 +567,15 @@ export const bind = ($item, item) => {
   // ── Freeze — capture lineup events into item text, save the item ─────────────
   // Serialises all current events (including any LINEUP-sourced ones) back into
   // the item's DSL text and saves via pageHandler.put. The resulting text is
-  // fully editable: add `PALETTE warm`, tweak dates, or restore `LINEUP` to thaw.
-  $item.find('.tl-save').on('click', function () {
-    const btn = this
+  // ── Ghost-page export — render SVG as a portable ghost page ──────────────────
+  $item.find('.tl-ghost').on('click', function () {
     try {
-      const frozenText = eventsToText(events, item.text)
-      const $page      = $item.closest('.page')
-      const updatedItem = { ...item, text: frozenText }
-      wiki.pageHandler.put($page, { type: 'edit', id: item.id, item: updatedItem })
-      // Update in-memory item so a second freeze works without re-bind
-      item.text = frozenText
-      btn.classList.add('tl-saved')
-      setTimeout(() => btn.classList.remove('tl-saved'), 1600)
+      const svg = renderSVG(events, { width: 1200, palette })
+      freezeToGhost($item, svg, 'timeline', item.text || '')
+      this.classList.add('tl-saved')
+      setTimeout(() => this.classList.remove('tl-saved'), 1200)
     } catch (err) {
-      console.error('[timeline] freeze failed', err)
+      console.error('[timeline] ghost export failed', err)
     }
   })
 
@@ -599,9 +600,16 @@ export const bind = ($item, item) => {
   })
 
   // ── Edit — dblclick anywhere outside the SVG ──────────────────────────────
+  // When LINEUP is active, pre-fill the editor with the serialised snapshot of
+  // the current events so that saving = freeze. The user can add PALETTE warm,
+  // adjust dates, or restore LINEUP to go dynamic again.
   $item.on('dblclick', e => {
     if ($(e.target).closest('svg').length) return
-    wiki.textEditor($item, item)
+    const { lineup } = parseText(item.text)
+    const editItem = (lineup && events.length)
+      ? { ...item, text: eventsToText(events, item.text) }
+      : item
+    wiki.textEditor($item, editItem)
   })
 
   // ── Messages from the fullscreen tab ─────────────────────────────────────
