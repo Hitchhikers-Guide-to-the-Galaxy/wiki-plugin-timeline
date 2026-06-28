@@ -581,14 +581,23 @@ export const bind = ($item, item) => {
     } catch (_) {}
   })
 
-  // ── Freeze — capture lineup events into item text, save the item ─────────────
-  // Serialises all current events (including any LINEUP-sourced ones) back into
-  // the item's DSL text and saves via pageHandler.put. The resulting text is
   // ── Ghost-page export — render SVG as a portable ghost page ──────────────────
+  // Render at column width (420) so the SVG Plugin displays it at the same
+  // proportions as the inline item. Using width:1200 would make the SVG Plugin
+  // scale height down to 420/1200 × H ≈ H/3, appearing ~3× too short.
   $item.find('.tl-ghost').on('click', function () {
     try {
-      const svg = svgScalable(renderSVG(events, { width: 1200, palette }))
-      freezeToGhost($item, svg, 'timeline', item.text || '')
+      const w = window.wiki
+      if (!w?.newPage || !w?.showResult) return
+      const $page    = $item.closest('.page')
+      const srcTitle = $page.find('h1').text().trim() || 'Timeline'
+      const svg      = svgScalable(renderSVG(events, { palette }))  // default W=420
+      const ghost    = w.newPage({ title: `${srcTitle} SVG`, story: [] })
+      ghost.addItem({ type: 'markdown', text: `# SVG\n\nExported from [[${srcTitle}]]` })
+      ghost.addItem({ type: 'svg',      text: svg })
+      ghost.addItem({ type: 'markdown', text: '## Source' })
+      ghost.addItem({ type: 'timeline', text: item.text || '' })
+      w.showResult(ghost, { $page })
       this.classList.add('tl-saved')
       setTimeout(() => this.classList.remove('tl-saved'), 1200)
     } catch (err) {
