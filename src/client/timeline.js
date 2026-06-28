@@ -480,6 +480,23 @@ export const eventsToText = (events, originalText) => {
   return lines.join('\n')
 }
 
+// Strip fixed width/height from an SVG string so the SVG Plugin can scale it
+// to fill the column at the correct aspect ratio (viewBox provides proportions).
+const svgScalable = svg => {
+  // Remove width/height attributes, then patch the existing style to add scalable rules
+  let s = svg.replace(/<svg\b/, '<svg')
+              .replace(/\bwidth="[^"]*"/, '')
+              .replace(/\bheight="[^"]*"/, '')
+  // Merge into the existing style attribute rather than adding a second one
+  if (/\bstyle="/.test(s)) {
+    s = s.replace(/\bstyle="([^"]*)"/, (_m, existing) =>
+      `style="${existing.replace(/;?(width|height|display)[^;]*/g, '').replace(/;+$/, '')};width:100%;height:auto;display:block"`)
+  } else {
+    s = s.replace('<svg', '<svg style="width:100%;height:auto;display:block"')
+  }
+  return s
+}
+
 // ── Controls helpers ──────────────────────────────────────────────────────────
 
 // SVG expand icon (12×12)
@@ -570,7 +587,7 @@ export const bind = ($item, item) => {
   // ── Ghost-page export — render SVG as a portable ghost page ──────────────────
   $item.find('.tl-ghost').on('click', function () {
     try {
-      const svg = renderSVG(events, { width: 1200, palette })
+      const svg = svgScalable(renderSVG(events, { width: 1200, palette }))
       freezeToGhost($item, svg, 'timeline', item.text || '')
       this.classList.add('tl-saved')
       setTimeout(() => this.classList.remove('tl-saved'), 1200)
