@@ -4,12 +4,11 @@
 //   - Date Plugin items upstream in the lineup (when LINEUP keyword present)
 //   - Frozen lineup snapshots (item.frozen)
 
-import { freezeToGhost } from '@fortyfoxes/wiki-capsule'
 
 // ── Parser ────────────────────────────────────────────────────────────────────
 // DSL (Mermaid gantt-inspired):
 //
-//   LINEUP                              ← enable lineup scanning
+//   LINEUP                              ← enable live lineup scanning
 //   PALETTE warm                        ← named built-in palette
 //   PALETTE #e040fb #00e5ff #69f0ae     ← custom hex colours
 //   PALETTE red blue green              ← named CSS colours
@@ -17,6 +16,12 @@ import { freezeToGhost } from '@fortyfoxes/wiki-capsule'
 //   2026-01-15 Event Label             ← point event
 //   2026-02-01..2026-05-30 Event Label ← range event
 //   2026-02-01 Event #GroupName        ← inline group tag
+//
+// Freeze/thaw:
+//   ❄ button serialises current events (including LINEUP sources) back into
+//   the item text and saves it — removing the LINEUP keyword. The resulting
+//   text is fully editable (add PALETTE, adjust dates, etc.). To thaw,
+//   double-click the item to edit, clear the event lines, and restore LINEUP.
 
 const parseISO = str => {
   const m = str.match(/^(\d{4})-(\d{2})-(\d{2})$/)
@@ -95,10 +100,6 @@ const labelAndGroup = (rest, defaultGroup) => {
 // Returns normalised event objects merged with authored events.
 
 export const collect = ($item, item, authoredEvents) => {
-  if (item.frozen) {
-    return [...item.frozen, ...authoredEvents]
-  }
-
   const { lineup } = parseText(item.text)
   if (!lineup) return authoredEvents
 
@@ -440,6 +441,45 @@ export const renderSVG = (events, opts = {}) => {
   return o.join('\n')
 }
 
+// ── Freeze serialiser ─────────────────────────────────────────────────────────
+// Converts an array of event objects back to DSL text.
+// Preserves PALETTE directive from the original text; strips LINEUP keyword.
+// Groups events into `section` blocks when group names are present.
+
+const pad2date = n => String(n).padStart(2, '0')
+const fmtISO = d => `${d.getFullYear()}-${pad2date(d.getMonth()+1)}-${pad2date(d.getDate())}`
+
+export const eventsToText = (events, originalText) => {
+  const lines = []
+
+  // Preserve any PALETTE directive from the original text
+  for (const raw of (originalText || '').split('\n')) {
+    if (/^PALETTE\s/i.test(raw.trim())) lines.push(raw.trim())
+  }
+
+  // Group events by their section / group
+  const secMap = new Map()
+  for (const ev of events) {
+    const k = ev.group ?? '\0'
+    if (!secMap.has(k)) secMap.set(k, { name: ev.group ?? null, events: [] })
+    secMap.get(k).events.push(ev)
+  }
+
+  for (const { name, events: evs } of secMap.values()) {
+    if (name) lines.push(`section ${name}`)
+    for (const ev of evs) {
+      const isPoint = ev.start.getTime() === ev.end.getTime()
+      const dateStr = isPoint
+        ? fmtISO(ev.start)
+        : `${fmtISO(ev.start)}..${fmtISO(ev.end)}`
+      const labelPart = ev.label ? ` ${ev.label}` : ''
+      lines.push(`${dateStr}${labelPart}`)
+    }
+  }
+
+  return lines.join('\n')
+}
+
 // ── Controls helpers ──────────────────────────────────────────────────────────
 
 // SVG expand icon (12×12)
@@ -449,7 +489,7 @@ const EXPAND_ICON =
   `</svg>`
 
 const mkControls = () => {
-  const sTitle = 'Freeze as a portable capsule page (then fork/keep to save)'
+  const sTitle = 'Freeze — capture LINEUP events into item text so they persist (double-click to edit; restore LINEUP to thaw)'
   const eTitle = 'Open fullscreen in new tab'
   return (
     `<div class="tl-controls">` +
@@ -488,10 +528,6 @@ const injectTLCSS = () => {
 export const emit = ($item, item) => {
   if (typeof document !== 'undefined') injectTLCSS()
   const { events: authoredEvents, palette } = parseText(item.text)
-  const events = item.frozen
-    ? [...(item.frozen || []).map(normaliseStoredEvent), ...authoredEvents]
-    : authoredEvents
-
   $item.html(
     `<div class="wiki-plugin-timeline">` +
     renderSVG(events, { palette }) +
@@ -499,13 +535,6 @@ export const emit = ($item, item) => {
     `</div>`
   )
 }
-
-const normaliseStoredEvent = ev => ({
-  label: ev.label || '',
-  start: new Date(ev.start),
-  end:   new Date(ev.end || ev.start),
-  group: ev.group || null,
-})
 
 // ── bind ──────────────────────────────────────────────────────────────────────
 
@@ -529,17 +558,24 @@ export const bind = ($item, item) => {
     } catch (_) {}
   })
 
-  // ── Freeze as a portable capsule page ──────────────────────────────────────
-  // Publish the rendered timeline as a client-side ghost capsule page (no server):
-  // the SVG Plugin shows the picture and the `timeline` source travels alongside so
-  // the page stays editable. Persist with the wiki's native fork/keep. No thaw.
+  // ── Freeze — capture lineup events into item text, save the item ─────────────
+  // Serialises all current events (including any LINEUP-sourced ones) back into
+  // the item's DSL text and saves via pageHandler.put. The resulting text is
+  // fully editable: add `PALETTE warm`, tweak dates, or restore `LINEUP` to thaw.
   $item.find('.tl-save').on('click', function () {
+    const btn = this
     try {
-      const svg = renderSVG(events, { width: 1200, palette })
-      freezeToGhost($item, svg, 'timeline', item.text || '')
-      this.classList.add('tl-saved')
-      setTimeout(() => this.classList.remove('tl-saved'), 1200)
-    } catch (_) {}
+      const frozenText = eventsToText(events, item.text)
+      const $page      = $item.closest('.page')
+      const updatedItem = { ...item, text: frozenText }
+      wiki.pageHandler.put($page, { type: 'edit', id: item.id, item: updatedItem })
+      // Update in-memory item so a second freeze works without re-bind
+      item.text = frozenText
+      btn.classList.add('tl-saved')
+      setTimeout(() => btn.classList.remove('tl-saved'), 1600)
+    } catch (err) {
+      console.error('[timeline] freeze failed', err)
+    }
   })
 
   // ── Fullscreen — opens in a new browser tab ────────────────────────────────

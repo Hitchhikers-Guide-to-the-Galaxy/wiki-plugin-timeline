@@ -1,5 +1,5 @@
 import { strict as assert } from 'assert'
-import { parseText, renderSVG } from '../src/client/timeline.js'
+import { parseText, renderSVG, eventsToText } from '../src/client/timeline.js'
 
 const test = (name, fn) => {
   try { fn(); console.log('  ✓', name) }
@@ -146,4 +146,43 @@ test('opts.width changes SVG width', () => {
   const events = [{ label: 'Ev', start: new Date(2026,0,1), end: new Date(2026,6,1), group: null }]
   const svg = renderSVG(events, { width: 860 })
   assert.ok(svg.includes('width="860"'))
+})
+
+console.log('eventsToText')
+
+test('point event round-trips through text', () => {
+  const events = [{ label: 'My Event', start: new Date(2026,0,15), end: new Date(2026,0,15), group: null }]
+  const text = eventsToText(events, '')
+  assert.ok(text.includes('2026-01-15 My Event'))
+})
+
+test('range event round-trips through text', () => {
+  const events = [{ label: 'Compo', start: new Date(2026,1,1), end: new Date(2026,4,30), group: null }]
+  const text = eventsToText(events, '')
+  assert.ok(text.includes('2026-02-01..2026-05-30 Compo'))
+})
+
+test('section groups emit section directive', () => {
+  const events = [{ label: 'A', start: new Date(2026,0,1), end: new Date(2026,0,1), group: 'Demoscene' }]
+  const text = eventsToText(events, '')
+  assert.ok(text.includes('section Demoscene'))
+  assert.ok(text.includes('2026-01-01 A'))
+})
+
+test('preserves PALETTE directive from original text', () => {
+  const events = [{ label: 'A', start: new Date(2026,0,1), end: new Date(2026,0,1), group: null }]
+  const text = eventsToText(events, 'LINEUP\nPALETTE warm')
+  assert.ok(text.startsWith('PALETTE warm'))
+})
+
+test('freeze output re-parses to same events', () => {
+  const orig = [
+    { label: 'First', start: new Date(2026,0,1), end: new Date(2026,2,31), group: 'G1' },
+    { label: 'Second', start: new Date(2026,5,1), end: new Date(2026,5,1), group: null },
+  ]
+  const text = eventsToText(orig, '')
+  const { events } = parseText(text)
+  assert.equal(events.length, 2)
+  assert.equal(events[0].label, 'First')
+  assert.equal(events[1].label, 'Second')
 })
